@@ -47,17 +47,17 @@
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Normalize a Discord media URL:
-   *   1. Convert media.discordapp.net → cdn.discordapp.com (full-res origin).
-   *   2. Strip query-string and fragment so ?width=400 variants deduplicate.
+   * Produce a stable deduplication key from a raw URL.
+   * Strips the query-string and fragment so the same attachment URL with
+   * different expiry/format params (ex=, is=, hm=, format=, quality=) always
+   * maps to the same key. The hostname is intentionally left unchanged so
+   * that media.discordapp.net stays as media.discordapp.net in the key
+   * (and therefore in the exported output).
    */
   function normalizeUrl(raw) {
     try {
       const u = new URL(raw);
-      if (u.hostname === "media.discordapp.net") {
-        u.hostname = "cdn.discordapp.com";
-      }
-      return u.origin + u.pathname;
+      return u.origin + u.pathname; // query-stripped, host unchanged
     } catch {
       return raw.split("?")[0].split("#")[0];
     }
@@ -80,8 +80,20 @@
     "/embed/avatars/",
   ];
 
-  /** Image file extensions considered "images" (vs generic file attachments). */
-  const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
+  /**
+   * The only URL structure we want to collect.
+   * Must be a Discord media-proxy attachment URL with an allowed image extension.
+   *
+   *   https://media.discordapp.net/attachments/<channel>/<attach>/filename.png
+   *
+   * Allowed extensions: .png  .jpg  .jpeg  .webp
+   * Excluded:  avatars, emojis, stickers, embeds, GIFs, Tenor, cdn.discordapp.com, etc.
+   */
+  const ATTACH_MARKER  = "media.discordapp.net/attachments/";
+  const ATTACH_EXT_RE  = /\.(png|jpe?g|webp)(\?|$)/i;
+
+  /** Image file extensions used only for the "image" vs "file" counter label. */
+  const IMAGE_EXT_RE = ATTACH_EXT_RE; // everything we collect is an image
 
   /**
    * Returns true if a URL or its source element looks like UI noise
@@ -114,12 +126,13 @@
     return false;
   }
 
-  /** True when the URL points to either Discord CDN host. */
-  function isDiscordMedia(url) {
-    return (
-      url.includes("cdn.discordapp.com") ||
-      url.includes("media.discordapp.net")
-    );
+  /**
+   * Returns true only for Discord attachment URLs with an allowed extension.
+   * Checked on the raw URL before normalization so the /attachments/ path
+   * segment and extension are still present.
+   */
+  function isAttachmentUrl(url) {
+    return url.includes(ATTACH_MARKER) && ATTACH_EXT_RE.test(url);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -217,37 +230,49 @@
    * Extract all media URLs from a single <li> message element.
    *
    * Sources scanned (in priority order):
-   *   1. <a href> links to cdn.discordapp.com or media.discordapp.net
-   *   2. <img src> elements that point to either CDN host (noise-filtered)
-   *   3. <video src> and <video><source src> for video attachments
+   *   1. <img src> — primary source. Discord renders attachment images through
+   *      media.discordapp.net and the img.src always carries the full proxy
+   *      URL including format/quality params. Processed first so that when
+   *      both an <img> and a wrapping <a> point to the same attachment, the
+   *      img.src wins and is what gets exported.
+   *   2. <a href> links to media.discordapp.net — fallback for cases where
+   *      an image has not yet rendered but the anchor is already in the DOM.
+   *      cdn.discordapp.com anchor links are excluded by isAttachmentUrl.
+   *   3. <video src> / <source src> — video attachments (not currently
+   *      matched by isAttachmentUrl's extension check, kept for future use).
    *
-   * Returns a Map<url, "image"|"file"> so callers can update counters correctly.
+   * Returns a Map<deduplicationKey, {type, rawUrl}> where:
+   *   - key     = query-stripped URL (media.discordapp.net/attachments/…/file.png)
+   *   - rawUrl  = the original URL with all query params — this is what gets exported
+   *   - type    = "image" | "file" for the counter display
    */
   function extractMedia(liEl) {
-    /** @type {Map<string, "image"|"file">} */
+    /** @type {Map<string, {type: "image"|"file", rawUrl: string}>} */
     const found = new Map();
 
-    function add(url, el) {
-      if (!isDiscordMedia(url)) return;
-      if (isNoise(url, el))     return;
-      const norm = normalizeUrl(url);
-      if (!found.has(norm)) {
-        found.set(norm, IMAGE_EXT_RE.test(norm) ? "image" : "file");
+    function add(rawUrl, el) {
+      if (!isAttachmentUrl(rawUrl)) return;
+      if (isNoise(rawUrl, el))      return;
+      const key = normalizeUrl(rawUrl); // query-stripped path used for dedup
+      if (!found.has(key)) {
+        found.set(key, {
+          type:   IMAGE_EXT_RE.test(key) ? "image" : "file",
+          rawUrl, // full URL with query params — exported as-is
+        });
       }
     }
 
-    // ── Anchor links (most reliable — Discord always wraps file attachments) ──
-    liEl.querySelectorAll(SEL.linkCdn).forEach((a)   => add(a.href, null));
-    liEl.querySelectorAll(SEL.linkMedia).forEach((a)  => add(a.href, null));
-
-    // ── Inline images (may not have a wrapping <a>, e.g. embedded previews) ──
+    // ── 1. Inline images — preferred source (always media.discordapp.net) ──
     liEl.querySelectorAll(SEL.anyImg).forEach((img) => {
-      // Skip images whose src is a data URI or empty
       if (!img.src || img.src.startsWith("data:")) return;
       add(img.src, img);
     });
 
-    // ── Video attachments ──────────────────────────────────────────────────
+    // ── 2. Anchor links — fallback; cdn.discordapp.com links are filtered ──
+    liEl.querySelectorAll(SEL.linkCdn).forEach((a)  => add(a.href, null));
+    liEl.querySelectorAll(SEL.linkMedia).forEach((a) => add(a.href, null));
+
+    // ── 3. Video attachments ───────────────────────────────────────────────
     liEl.querySelectorAll(SEL.anyVideo).forEach((el) => {
       const src = el.src || el.getAttribute("src");
       if (src) add(src, null);
@@ -295,16 +320,18 @@
       if (currentAuthorId !== targetUserId) return;
 
       // Collect new media from this message, grouped by its message ID.
-      extractMedia(li).forEach((type, url) => {
-        if (collectedUrls.has(url)) return;  // already seen in another message
-        collectedUrls.add(url);
+      // key    = query-stripped URL (dedup handle)
+      // entry  = { type, rawUrl } where rawUrl keeps all query params
+      extractMedia(li).forEach(({ type, rawUrl }, key) => {
+        if (collectedUrls.has(key)) return; // already seen in another message
+        collectedUrls.add(key);
         if (type === "image") imagesFound++;
         else                  filesFound++;
         newFound++;
 
-        // Append to this message's bucket (create it on first URL).
+        // Store the full raw URL (with format/quality params) for export.
         if (!urlsByMessage.has(msgId)) urlsByMessage.set(msgId, []);
-        urlsByMessage.get(msgId).push(url);
+        urlsByMessage.get(msgId).push(rawUrl);
       });
     });
 
