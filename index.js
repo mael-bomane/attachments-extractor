@@ -16,11 +16,24 @@
   // CONFIGURATION
   // ─────────────────────────────────────────────────────────────────────────
   const CFG = {
-    scrollDelay:    800,  // ms to wait after each scroll cycle (throttle)
     mutationTimeout: 1400, // max ms to wait for Discord to load new messages
     mutationSettle:  180,  // ms after a DOM mutation fires before we scan
     maxNoNew:        5,    // consecutive scrolls with zero new messages → stop
   };
+
+  // ── Scroll speed — persisted in localStorage ────────────────────────────
+  const SCROLL_DELAY_KEY     = "dac-scroll-delay";
+  const SCROLL_DELAY_DEFAULT = 500;  // ms
+  const SCROLL_DELAY_MIN     = 100;
+  const SCROLL_DELAY_MAX     = 2000;
+
+  // Initialise from localStorage so the last-used speed survives page reloads.
+  let scrollDelay = (() => {
+    const saved = parseInt(localStorage.getItem(SCROLL_DELAY_KEY));
+    return (saved >= SCROLL_DELAY_MIN && saved <= SCROLL_DELAY_MAX)
+      ? saved
+      : SCROLL_DELAY_DEFAULT;
+  })();
 
   // ─────────────────────────────────────────────────────────────────────────
   // DOM SELECTORS
@@ -437,8 +450,9 @@
       }
 
       scrollsDone++;
-      // Brief throttle between scroll cycles to avoid hammering the DOM.
-      await sleep(CFG.scrollDelay);
+      // Brief throttle between scroll cycles — duration controlled by the
+      // speed slider and updated in real time via the `scrollDelay` variable.
+      await sleep(scrollDelay);
     }
   }
 
@@ -586,6 +600,14 @@
             <input  class="dac-input" id="dac-maxscroll" type="number"
                     min="1" max="2000" value="300" />
 
+            <!-- Scroll speed slider — value persisted in localStorage -->
+            <label class="dac-label" for="dac-speed">
+                Scroll speed delay: <span id="dac-speed-val"></span>ms
+            </label>
+            <input class="dac-input" id="dac-speed" type="range"
+                   min="100" max="2000" step="50"
+                   style="padding:0; cursor:pointer;" />
+
             <div class="dac-btn-row">
                 <button class="dac-btn" id="dac-start">▶ Start</button>
                 <button class="dac-btn" id="dac-stop">■ Stop</button>
@@ -604,6 +626,24 @@
     startBtn = document.getElementById("dac-start");
     stopBtn = document.getElementById("dac-stop");
     exportBtn = document.getElementById("dac-export");
+
+    // ── Scroll speed slider ───────────────────────────────────────────────
+    const speedSlider  = document.getElementById("dac-speed");
+    const speedValSpan = document.getElementById("dac-speed-val");
+
+    // Seed the slider with the value loaded from localStorage at startup.
+    speedSlider.value    = scrollDelay;
+    speedValSpan.textContent = scrollDelay;
+
+    speedSlider.addEventListener("input", () => {
+      // Update the runtime variable immediately so any in-progress scroll
+      // loop picks up the new delay on the very next cycle.
+      scrollDelay = parseInt(speedSlider.value);
+      speedValSpan.textContent = scrollDelay;
+
+      // Persist the new value so it survives page reloads.
+      localStorage.setItem(SCROLL_DELAY_KEY, scrollDelay);
+    });
 
     // ── Toggle panel open/close ───────────────────────────────────────────
     toggleBtn.addEventListener("click", () => {
