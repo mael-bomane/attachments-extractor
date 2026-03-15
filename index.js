@@ -518,7 +518,8 @@
   // ─────────────────────────────────────────────────────────────────────────
   function watchForInbox(toggleBtn) {
     // Match the inbox toolbar button but not the inbox popout dialog itself.
-    const TOOLBAR_BTN_SEL = '[aria-label="Inbox"]:not([role="dialog"]):not([aria-modal])';
+    const TOOLBAR_BTN_SEL =
+      '[aria-label="Inbox"]:not([role="dialog"]):not([aria-modal])';
 
     setInterval(() => {
       const toolbarBtn = document.querySelector(TOOLBAR_BTN_SEL);
@@ -528,9 +529,9 @@
         if (toggleBtn.parentElement !== document.body) {
           document.body.appendChild(toggleBtn);
           toggleBtn.style.position = "fixed";
-          toggleBtn.style.top      = "8px";
-          toggleBtn.style.left     = "auto";
-          toggleBtn.style.right    = "56px";
+          toggleBtn.style.top = "8px";
+          toggleBtn.style.left = "auto";
+          toggleBtn.style.right = "56px";
         }
         return;
       }
@@ -540,9 +541,9 @@
         toolbarBtn.parentElement.insertBefore(toggleBtn, toolbarBtn);
         // Inside the toolbar the button flows naturally — drop fixed positioning.
         toggleBtn.style.position = "";
-        toggleBtn.style.top      = "";
-        toggleBtn.style.left     = "";
-        toggleBtn.style.right    = "";
+        toggleBtn.style.top = "";
+        toggleBtn.style.left = "";
+        toggleBtn.style.right = "";
       }
     }, 300);
   }
@@ -572,7 +573,8 @@
     style.textContent = `
             #dac-toggle {
                 z-index: 9999;
-                width: 18px; height: 18px; border: none;
+                width: 18px; height: 18px;
+                border: 1px solid color-mix(in oklab,hsl(233.333 calc(1*3.93%) 55.098%/1) 100%,#000 0%);
                 background: #2B2D31; color: #fff; cursor: pointer;
                 display: flex; align-items: center; justify-content: center;
                 box-shadow: 0 2px 8px rgba(0,0,0,.45);
@@ -631,7 +633,8 @@
     toggleBtn.title = "Discord Attachment Collector";
     toggleBtn.innerHTML = `🥷`;
     // Default position — JS owns all positioning so the CSS rule stays clean.
-    toggleBtn.style.cssText += "position:fixed; top:8px; right:56px; left:auto;";
+    toggleBtn.style.cssText +=
+      "position:fixed; top:8px; right:56px; left:auto;";
 
     // ── Floating panel ────────────────────────────────────────────────────
     panelEl = document.createElement("div");
