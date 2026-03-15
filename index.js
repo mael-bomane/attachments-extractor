@@ -17,15 +17,15 @@
   // ─────────────────────────────────────────────────────────────────────────
   const CFG = {
     mutationTimeout: 1400, // max ms to wait for Discord to load new messages
-    mutationSettle:  180,  // ms after a DOM mutation fires before we scan
-    maxNoNew:        5,    // consecutive scrolls with zero new messages → stop
+    mutationSettle: 180, // ms after a DOM mutation fires before we scan
+    maxNoNew: 5, // consecutive scrolls with zero new messages → stop
   };
 
   // ── Scroll speed — persisted in localStorage ────────────────────────────
-  const SCROLL_DELAY_KEY     = "dac-scroll-delay";
-  const SCROLL_DELAY_DEFAULT = 500;  // ms
-  const SCROLL_DELAY_MIN     = 100;
-  const SCROLL_DELAY_MAX     = 2000;
+  const SCROLL_DELAY_KEY = "dac-scroll-delay";
+  const SCROLL_DELAY_DEFAULT = 500; // ms
+  const SCROLL_DELAY_MIN = 100;
+  const SCROLL_DELAY_MAX = 2000;
 
   // Initialise from localStorage so the last-used speed survives page reloads.
   // Wrapped in try/catch: a SecurityError here (storage blocked, incognito,
@@ -34,7 +34,7 @@
   let scrollDelay = (() => {
     try {
       const saved = parseInt(localStorage.getItem(SCROLL_DELAY_KEY));
-      return (saved >= SCROLL_DELAY_MIN && saved <= SCROLL_DELAY_MAX)
+      return saved >= SCROLL_DELAY_MIN && saved <= SCROLL_DELAY_MAX
         ? saved
         : SCROLL_DELAY_DEFAULT;
     } catch {
@@ -48,18 +48,18 @@
   // We rely on partial class matching and stable data-* attributes instead.
   // ─────────────────────────────────────────────────────────────────────────
   const SEL = {
-    appMount:    "#app-mount",
-    messagesOL:  'ol[data-list-id="chat-messages"]',
+    appMount: "#app-mount",
+    messagesOL: 'ol[data-list-id="chat-messages"]',
     messageItem: 'li[id^="chat-messages-"]',
     // Elements that carry data-user-id (avatar container, username button, etc.)
-    dataUserId:  '[data-user-id]',
+    dataUserId: "[data-user-id]",
     // All anchor tags linking to either Discord CDN host
-    linkCdn:     'a[href*="cdn.discordapp.com"]',
-    linkMedia:   'a[href*="media.discordapp.net"]',
+    linkCdn: 'a[href*="cdn.discordapp.com"]',
+    linkMedia: 'a[href*="media.discordapp.net"]',
     // Every <img> inside a message (we filter noise afterward)
-    anyImg:      "img[src]",
+    anyImg: "img[src]",
     // Video elements and their <source> children
-    anyVideo:    "video[src], video source[src]",
+    anyVideo: "video[src], video source[src]",
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -109,8 +109,8 @@
    * Allowed extensions: .png  .jpg  .jpeg  .webp
    * Excluded:  avatars, emojis, stickers, embeds, GIFs, Tenor, cdn.discordapp.com, etc.
    */
-  const ATTACH_MARKER  = "media.discordapp.net/attachments/";
-  const ATTACH_EXT_RE  = /\.(png|jpe?g|webp)(\?|$)/i;
+  const ATTACH_MARKER = "media.discordapp.net/attachments/";
+  const ATTACH_EXT_RE = /\.(png|jpe?g|webp)(\?|$)/i;
 
   /** Image file extensions used only for the "image" vs "file" counter label. */
   const IMAGE_EXT_RE = ATTACH_EXT_RE; // everything we collect is an image
@@ -134,12 +134,14 @@
     if (
       el.closest('[class*="emoji"]') ||
       el.getAttribute("data-type") === "emoji" ||
-      (el.getAttribute("aria-label") && el.getAttribute("role") === "img" &&
+      (el.getAttribute("aria-label") &&
+        el.getAttribute("role") === "img" &&
         (el.naturalWidth <= 24 || parseInt(el.getAttribute("width")) <= 24))
-    ) return true;
+    )
+      return true;
 
     // Tiny rendered size is a strong signal for emoji / reaction images.
-    const w = el.naturalWidth  || parseInt(el.getAttribute("width")  || "0");
+    const w = el.naturalWidth || parseInt(el.getAttribute("width") || "0");
     const h = el.naturalHeight || parseInt(el.getAttribute("height") || "0");
     if (w > 0 && w <= 24 && h > 0 && h <= 24) return true;
 
@@ -158,14 +160,14 @@
   // ─────────────────────────────────────────────────────────────────────────
   // RUNTIME STATE
   // ─────────────────────────────────────────────────────────────────────────
-  let isRunning       = false;
-  let shouldStop      = false;
-  let collectedUrls   = new Set();   // deduplicated, normalized media URLs (global dedup)
-  let urlsByMessage   = new Map();   // Map<messageId, string[]> — grouped for export
-  let processedMsgIds = new Set();   // <li> IDs already scanned
+  let isRunning = false;
+  let shouldStop = false;
+  let collectedUrls = new Set(); // deduplicated, normalized media URLs (global dedup)
+  let urlsByMessage = new Map(); // Map<messageId, string[]> — grouped for export
+  let processedMsgIds = new Set(); // <li> IDs already scanned
   let messagesScanned = 0;
-  let filesFound      = 0;   // non-image attachments (PDFs, ZIPs, videos, …)
-  let imagesFound     = 0;   // image URLs (.png, .jpg, .gif, .webp, …)
+  let filesFound = 0; // non-image attachments (PDFs, ZIPs, videos, …)
+  let imagesFound = 0; // image URLs (.png, .jpg, .gif, .webp, …)
 
   // ─────────────────────────────────────────────────────────────────────────
   // UTILITIES
@@ -272,11 +274,11 @@
 
     function add(rawUrl, el) {
       if (!isAttachmentUrl(rawUrl)) return;
-      if (isNoise(rawUrl, el))      return;
+      if (isNoise(rawUrl, el)) return;
       const key = normalizeUrl(rawUrl); // query-stripped path used for dedup
       if (!found.has(key)) {
         found.set(key, {
-          type:   IMAGE_EXT_RE.test(key) ? "image" : "file",
+          type: IMAGE_EXT_RE.test(key) ? "image" : "file",
           rawUrl, // full URL with query params — exported as-is
         });
       }
@@ -289,7 +291,7 @@
     });
 
     // ── 2. Anchor links — fallback; cdn.discordapp.com links are filtered ──
-    liEl.querySelectorAll(SEL.linkCdn).forEach((a)  => add(a.href, null));
+    liEl.querySelectorAll(SEL.linkCdn).forEach((a) => add(a.href, null));
     liEl.querySelectorAll(SEL.linkMedia).forEach((a) => add(a.href, null));
 
     // ── 3. Video attachments ───────────────────────────────────────────────
@@ -346,7 +348,7 @@
         if (collectedUrls.has(key)) return; // already seen in another message
         collectedUrls.add(key);
         if (type === "image") imagesFound++;
-        else                  filesFound++;
+        else filesFound++;
         newFound++;
 
         // Store the full raw URL (with format/quality params) for export.
@@ -372,10 +374,13 @@
   function scrollAndWaitForLoad(scroller) {
     return new Promise((resolve) => {
       const ol = document.querySelector(SEL.messagesOL);
-      if (!ol) { resolve(0); return; }
+      if (!ol) {
+        resolve(0);
+        return;
+      }
 
       const before = ol.querySelectorAll(SEL.messageItem).length;
-      let settled  = false;
+      let settled = false;
 
       const finish = () => {
         if (settled) return;
@@ -505,6 +510,44 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // TOOLBAR WATCHER
+  // Inserts the toggle button as the immediate left sibling of Discord's
+  // inbox toolbar button so it sits naturally in the toolbar without any
+  // fixed/absolute positioning. Falls back to position:fixed in document.body
+  // if the toolbar button hasn't mounted yet (e.g. during SPA navigation).
+  // ─────────────────────────────────────────────────────────────────────────
+  function watchForInbox(toggleBtn) {
+    // Match the inbox toolbar button but not the inbox popout dialog itself.
+    const TOOLBAR_BTN_SEL = '[aria-label="Inbox"]:not([role="dialog"]):not([aria-modal])';
+
+    setInterval(() => {
+      const toolbarBtn = document.querySelector(TOOLBAR_BTN_SEL);
+
+      if (!toolbarBtn) {
+        // Toolbar not ready — keep button in document.body with fixed fallback.
+        if (toggleBtn.parentElement !== document.body) {
+          document.body.appendChild(toggleBtn);
+          toggleBtn.style.position = "fixed";
+          toggleBtn.style.top      = "8px";
+          toggleBtn.style.left     = "auto";
+          toggleBtn.style.right    = "56px";
+        }
+        return;
+      }
+
+      // Insert immediately before the inbox toolbar button if not already there.
+      if (toolbarBtn.previousElementSibling !== toggleBtn) {
+        toolbarBtn.parentElement.insertBefore(toggleBtn, toolbarBtn);
+        // Inside the toolbar the button flows naturally — drop fixed positioning.
+        toggleBtn.style.position = "";
+        toggleBtn.style.top      = "";
+        toggleBtn.style.left     = "";
+        toggleBtn.style.right    = "";
+      }
+    }, 300);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // UI
   // ─────────────────────────────────────────────────────────────────────────
   let panelEl, statusEl, counterEl, startBtn, stopBtn, exportBtn;
@@ -528,14 +571,15 @@
     const style = document.createElement("style");
     style.textContent = `
             #dac-toggle {
-                position: fixed; top: 8px; right: 56px; z-index: 9999;
-                width: 34px; height: 34px; border-radius: 50%; border: none;
-                background: #5865F2; color: #fff; cursor: pointer;
+                z-index: 9999;
+                width: 18px; height: 18px; border: none;
+                background: #2B2D31; color: #fff; cursor: pointer;
                 display: flex; align-items: center; justify-content: center;
                 box-shadow: 0 2px 8px rgba(0,0,0,.45);
                 transition: background .15s;
+                filter: grayscale(100%);
             }
-            #dac-toggle:hover { background: #4752C4; }
+            #dac-toggle:hover { background: #4752C4; filter: grayscale(0%)}
             #dac-panel {
                 position: fixed; top: 50px; right: 12px; z-index: 9998;
                 width: 290px; background: #2B2D31; color: #DCDDDE;
@@ -585,11 +629,9 @@
     const toggleBtn = document.createElement("button");
     toggleBtn.id = "dac-toggle";
     toggleBtn.title = "Discord Attachment Collector";
-    toggleBtn.innerHTML = `
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0
-                         2-2V4a2 2 0 0 0-2-2z"/>
-            </svg>`;
+    toggleBtn.innerHTML = `🥷`;
+    // Default position — JS owns all positioning so the CSS rule stays clean.
+    toggleBtn.style.cssText += "position:fixed; top:8px; right:56px; left:auto;";
 
     // ── Floating panel ────────────────────────────────────────────────────
     panelEl = document.createElement("div");
@@ -627,6 +669,9 @@
 
     document.body.append(toggleBtn, panelEl);
 
+    // Start watching for the Inbox dialog to reposition the toggle button.
+    watchForInbox(toggleBtn);
+
     // Grab references to dynamic elements
     statusEl = document.getElementById("dac-status");
     counterEl = document.getElementById("dac-counter");
@@ -635,11 +680,11 @@
     exportBtn = document.getElementById("dac-export");
 
     // ── Scroll speed slider ───────────────────────────────────────────────
-    const speedSlider  = document.getElementById("dac-speed");
+    const speedSlider = document.getElementById("dac-speed");
     const speedValSpan = document.getElementById("dac-speed-val");
 
     // Seed the slider with the value loaded from localStorage at startup.
-    speedSlider.value    = scrollDelay;
+    speedSlider.value = scrollDelay;
     speedValSpan.textContent = scrollDelay;
 
     speedSlider.addEventListener("input", () => {
@@ -649,7 +694,11 @@
       speedValSpan.textContent = scrollDelay;
 
       // Persist the new value so it survives page reloads.
-      try { localStorage.setItem(SCROLL_DELAY_KEY, scrollDelay); } catch { /* storage blocked */ }
+      try {
+        localStorage.setItem(SCROLL_DELAY_KEY, scrollDelay);
+      } catch {
+        /* storage blocked */
+      }
     });
 
     // ── Toggle panel open/close ───────────────────────────────────────────
@@ -665,7 +714,7 @@
 
     // ── Start button ──────────────────────────────────────────────────────
     startBtn.addEventListener("click", async () => {
-      const userId    = document.getElementById("dac-userid").value.trim();
+      const userId = document.getElementById("dac-userid").value.trim();
       const channelId = document.getElementById("dac-channel").value.trim();
       const maxScrolls = Math.max(
         1,
@@ -692,8 +741,8 @@
       urlsByMessage.clear();
       processedMsgIds.clear();
       messagesScanned = 0;
-      filesFound      = 0;
-      imagesFound     = 0;
+      filesFound = 0;
+      imagesFound = 0;
       updateCounter();
 
       startBtn.style.display = "none";
@@ -716,7 +765,7 @@
 
       isRunning = false;
       startBtn.style.display = "inline-block";
-      stopBtn.style.display  = "none";
+      stopBtn.style.display = "none";
       if (urlsByMessage.size > 0) exportBtn.style.display = "inline-block";
     });
 
@@ -728,7 +777,7 @@
 
     // ── Export button ─────────────────────────────────────────────────────
     exportBtn.addEventListener("click", () => {
-      const userId    = document.getElementById("dac-userid").value.trim();
+      const userId = document.getElementById("dac-userid").value.trim();
       const channelId = document.getElementById("dac-channel").value.trim();
       exportToTxt(userId, channelId);
     });
