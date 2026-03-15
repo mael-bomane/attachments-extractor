@@ -28,11 +28,18 @@
   const SCROLL_DELAY_MAX     = 2000;
 
   // Initialise from localStorage so the last-used speed survives page reloads.
+  // Wrapped in try/catch: a SecurityError here (storage blocked, incognito,
+  // sandboxed iframe) would otherwise crash the entire script before init()
+  // runs and prevent the toggle button from ever appearing.
   let scrollDelay = (() => {
-    const saved = parseInt(localStorage.getItem(SCROLL_DELAY_KEY));
-    return (saved >= SCROLL_DELAY_MIN && saved <= SCROLL_DELAY_MAX)
-      ? saved
-      : SCROLL_DELAY_DEFAULT;
+    try {
+      const saved = parseInt(localStorage.getItem(SCROLL_DELAY_KEY));
+      return (saved >= SCROLL_DELAY_MIN && saved <= SCROLL_DELAY_MAX)
+        ? saved
+        : SCROLL_DELAY_DEFAULT;
+    } catch {
+      return SCROLL_DELAY_DEFAULT;
+    }
   })();
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -642,7 +649,7 @@
       speedValSpan.textContent = scrollDelay;
 
       // Persist the new value so it survives page reloads.
-      localStorage.setItem(SCROLL_DELAY_KEY, scrollDelay);
+      try { localStorage.setItem(SCROLL_DELAY_KEY, scrollDelay); } catch { /* storage blocked */ }
     });
 
     // ── Toggle panel open/close ───────────────────────────────────────────
